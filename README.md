@@ -263,3 +263,31 @@ The browser never receives questions for domains the user did not lock.
 No MongoDB.
 No DAuth.
 No separate Express server.
+
+
+## IMPORTANT VERCEL FIX
+
+Do not deploy this application with:
+
+    DATABASE_URL=sqlite:///local.db
+
+Vercel's serverless runtime does not provide a durable writable application
+filesystem. A file-backed SQLite database can therefore cause startup errors
+such as:
+
+    FUNCTION_INVOCATION_FAILED
+    OSError: [Errno 30] Read-only file system: '/var/task/instance'
+
+For Vercel, set DATABASE_URL to a managed PostgreSQL database instead.
+
+This fixed build uses a root-level `app.py`, matching Vercel's current
+zero-configuration Flask deployment model.
+
+Example:
+
+    DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME?sslmode=require
+
+Also set:
+
+    COOKIE_SECURE=1
+
