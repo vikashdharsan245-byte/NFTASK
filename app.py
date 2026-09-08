@@ -12,7 +12,6 @@ from flask import Flask, jsonify, render_template, request, session, redirect
 from flask_sqlalchemy import SQLAlchemy
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
-from resend import Resend
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", "dev-change-this-secret")
@@ -20,13 +19,21 @@ app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", "dev-change-this-s
 database_url = os.environ.get("DATABASE_URL")
 is_vercel = bool(os.environ.get("VERCEL"))
 
-# Vercel serverless instances do not provide a durable writable filesystem.
-# SQLite is a local-development fallback only.
-if is_vercel and not database_url:
-    raise RuntimeError(
-        "DATABASE_URL is required on Vercel. "
-        "Configure a managed PostgreSQL database."
-    )
+# Vercel serverless functions must use a remote database.
+# Never allow file-backed SQLite on Vercel.
+if is_vercel:
+    if not database_url:
+        raise RuntimeError(
+            "DATABASE_URL is missing. Configure PostgreSQL in Vercel Project Settings."
+        )
+
+    normalized_db = database_url.lower()
+
+    if normalized_db.startswith("sqlite:"):
+        raise RuntimeError(
+            "SQLite is not supported on Vercel. "
+            "Set DATABASE_URL to a managed PostgreSQL connection string."
+        )
 
 if database_url:
     if database_url.startswith("postgres://"):
@@ -39,9 +46,8 @@ if database_url:
         )
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 else:
-    local_db = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "local.db"
-    )
+    # Local development only.
+    local_db = os.path.join(os.path.dirname(__file__), "local.db")
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + local_db
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -51,9 +57,6 @@ app.config["SESSION_COOKIE_SECURE"] = os.environ.get("COOKIE_SECURE", "0") == "1
 
 db = SQLAlchemy(app)
 
-OTP_TTL_MINUTES = int(os.environ.get("OTP_TTL_MINUTES", "10"))
-OTP_RESEND_SECONDS = int(os.environ.get("OTP_RESEND_SECONDS", "60"))
-OTP_MAX_ATTEMPTS = int(os.environ.get("OTP_MAX_ATTEMPTS", "5"))
 ALLOWED_DOMAIN = os.environ.get("ALLOWED_EMAIL_DOMAIN", "nitt.edu").lower()
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 
@@ -120,13 +123,6 @@ class Answer(db.Model):
     team = db.relationship("Team")
 
 
-class OtpChallenge(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(255), nullable=False, index=True)
-    otp_hash = db.Column(db.String(64), nullable=False)
-    expires_at = db.Column(db.DateTime, nullable=False)
-    sent_at = db.Column(db.DateTime, nullable=False)
-    attempts = db.Column(db.Integer, default=0)
 
 
 def now():
@@ -237,6 +233,16 @@ def application_json(application):
 
 
 
+_database_initialized = False
+
+@app.before_request
+def ensure_database():
+    global _database_initialized
+    if _database_initialized:
+        return
+    initialize_database()
+    _database_initialized = True
+
 @app.get("/api/health")
 def health():
     return jsonify(ok=True, service="nitt-team-inductions")
@@ -255,192 +261,6 @@ def auth_me():
     if not user:
         return jsonify(message="Authentication required."), 401
     return jsonify(user=user_json(user))
-
-
-@app.post("/api/auth/logout")
-def auth_logout():
-    session.clear()
-    return jsonify(message="Logged out.")
-
-
-@app.post("/api/auth/google")
-def auth_google():
-    if not GOOGLE_CLIENT_ID:
-        return jsonify(message="GOOGLE_CLIENT_ID is not configured."), 500
-
-    data = request.get_json(silent=True) or {}
-    credential = data.get("credential")
-
-    if not credential:
-        return jsonify(message="Google credential is missing."), 400
-
-    try:
-        # Verifies signature, issuer, audience and token expiry.
-        info = id_token.verify_oauth2_token(
-            credential,
-            google_requests.Request(),
-            GOOGLE_CLIENT_ID,
-        )
-    except Exception:
-        return jsonify(message="Invalid Google identity token."), 401
-
-    email = normalize_email(info.get("email"))
-    hosted_domain = normalize_email(info.get("hd"))
-    email_verified = bool(info.get("email_verified"))
-
-    # hd is not merely trusted from the UI: enforce it on the server.
-    if (
-        not valid_nitt_email(email)
-        or hosted_domain != ALLOWED_DOMAIN
-        or not email_verified
-    ):
-        return jsonify(
-            message=f"Only verified {ALLOWED_DOMAIN} Google Workspace accounts are allowed."
-        ), 403
-
-    session["pending_google"] = {
-        "email": email,
-        "google_sub": info.get("sub"),
-        "name": info.get("name", ""),
-    }
-
-    # Send OTP to the exact verified Google account email.
-    result = issue_otp(email)
-    if result[1] is not None:
-        return result
-
-    return jsonify(
-        message="Google identity verified. An OTP was sent to your NITT email.",
-        email=email,
-    )
-
-
-@app.post("/api/auth/request-otp")
-def request_otp():
-    data = request.get_json(silent=True) or {}
-    email = normalize_email(data.get("email"))
-
-    if not valid_nitt_email(email):
-        return jsonify(message=f"Use your @{ALLOWED_DOMAIN} email address."), 400
-
-    result = issue_otp(email)
-    if result[1] is not None:
-        return result
-
-    return jsonify(
-        message="OTP sent to your NITT email address.",
-        email=email,
-    )
-
-
-def issue_otp(email):
-    existing = OtpChallenge.query.filter_by(email=email).order_by(
-        OtpChallenge.id.desc()
-    ).first()
-
-    current = now()
-    if existing and (current - existing.sent_at).total_seconds() < OTP_RESEND_SECONDS:
-        return jsonify(
-            message=f"Please wait {OTP_RESEND_SECONDS} seconds before requesting another OTP."
-        ), 429
-
-    otp = make_otp()
-    record = OtpChallenge(
-        email=email,
-        otp_hash=otp_digest(otp),
-        sent_at=current,
-        expires_at=current + timedelta(minutes=OTP_TTL_MINUTES),
-        attempts=0,
-    )
-    db.session.add(record)
-    db.session.commit()
-
-    api_key = os.environ.get("RESEND_API_KEY")
-    from_email = os.environ.get("OTP_FROM")
-
-    if not api_key or not from_email:
-        return jsonify(
-            message="Email service is not configured. Set RESEND_API_KEY and OTP_FROM."
-        ), 500
-
-    try:
-        resend = Resend(api_key)
-        resend.emails.send({
-            "from": from_email,
-            "to": [email],
-            "subject": "NITT Team Inductions OTP",
-            "text": (
-                f"Your Team Inductions OTP is {otp}. "
-                f"It expires in {OTP_TTL_MINUTES} minutes."
-            ),
-        })
-    except Exception as exc:
-        app.logger.exception("OTP email failed: %s", exc)
-        db.session.delete(record)
-        db.session.commit()
-        return jsonify(message="Failed to send OTP email."), 500
-
-    return jsonify(message="OTP sent.", email=email), 200
-
-
-@app.post("/api/auth/verify-otp")
-def verify_otp():
-    data = request.get_json(silent=True) or {}
-    email = normalize_email(data.get("email"))
-    otp = str(data.get("otp") or "")
-
-    if not valid_nitt_email(email):
-        return jsonify(message="Only NITT email addresses are allowed."), 400
-
-    record = OtpChallenge.query.filter_by(email=email).order_by(
-        OtpChallenge.id.desc()
-    ).first()
-
-    if not record:
-        return jsonify(message="No active OTP challenge."), 400
-
-    if record.expires_at < now():
-        return jsonify(message="OTP expired. Request a new OTP."), 400
-
-    if record.attempts >= OTP_MAX_ATTEMPTS:
-        return jsonify(message="Too many attempts. Request a new OTP."), 429
-
-    record.attempts += 1
-
-    if not hmac.compare_digest(record.otp_hash, otp_digest(otp)):
-        db.session.commit()
-        return jsonify(message="Incorrect OTP."), 400
-
-    # If Google login started the flow, the OTP email must match the
-    # Google-verified identity. This prevents using Google for one account
-    # and OTP for another.
-    pending_google = session.get("pending_google")
-    if pending_google and normalize_email(pending_google.get("email")) != email:
-        return jsonify(message="OTP email does not match the Google account."), 403
-
-    user = User.query.filter_by(email=email).first()
-    if not user:
-        user = User(
-            email=email,
-            name=(pending_google or {}).get("name", ""),
-            google_sub=(pending_google or {}).get("google_sub"),
-            roll_no=email.split("@")[0],
-        )
-        db.session.add(user)
-    else:
-        if pending_google:
-            user.google_sub = pending_google.get("google_sub") or user.google_sub
-            user.name = pending_google.get("name") or user.name
-
-    db.session.commit()
-    get_application(user)
-
-    session.clear()
-    session["user_id"] = user.id
-
-    return jsonify(user=user_json(user))
-
-
 @app.get("/api/teams")
 @login_required
 def teams():
@@ -719,13 +539,21 @@ def seed_data():
     db.session.commit()
 
 
-with app.app_context():
-    db.create_all()
-    if os.environ.get("SEED_ON_START", "1") == "1":
-        seed_data()
+def initialize_database():
+    """
+    Initialize schema explicitly.
+    This is NOT executed at module import, because Vercel imports
+    the Flask module while constructing serverless invocations.
+    """
+    with app.app_context():
+        db.create_all()
+        if os.environ.get("SEED_ON_START", "0") == "1":
+            seed_data()
+
 
 
 if __name__ == "__main__":
+    initialize_database()
     app.run(
         host="0.0.0.0",
         port=int(os.environ.get("PORT", "5000")),

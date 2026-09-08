@@ -15,70 +15,28 @@
     <div class="auth-card">
         <h2>NITT Student Login</h2>
         <p>
-            Sign in with your NITT Google account. After Google identity
-            verification, an OTP will be sent to your verified NITT email.
+            Sign in with your NITT Google Workspace account.
+            Only verified <strong>@nitt.edu</strong> accounts are accepted.
         </p>
-
-        <div id="loginStep">
-            <div id="authMessage" class="auth-message"></div>
-
-            <div
-                id="googleSignIn"
-                class="google-wrap"
-                data-client_id="{{ google_client_id }}"
-                data-context="signin"
-                data-ux_mode="popup"
-                data-callback="handleGoogleCredential"
-                data-hd="nitt.edu"
-                data-auto_prompt="false">
-            </div>
-
-            <div class="auth-note">
-                Only verified @nitt.edu accounts are accepted.
-                The server validates the Google ID token and domain.
-            </div>
-
-            <div style="text-align:center;color:#91a8c2;font-size:12px;margin:13px 0 8px;">
-                — or verify by NITT email OTP —
-            </div>
-
-            <input id="emailInput" class="auth-field"
-                   type="email"
-                   placeholder="yourrollno@nitt.edu"
-                   autocomplete="email">
-
-            <button id="sendEmailOtp" class="primary-btn auth-btn">
-                Send OTP
-            </button>
+        <div id="authMessage" class="auth-message"></div>
+        <div
+            id="googleSignIn"
+            class="google-wrap"
+            data-client_id="{{ google_client_id }}"
+            data-context="signin"
+            data-ux_mode="popup"
+            data-callback="handleGoogleCredential"
+            data-hd="nitt.edu"
+            data-auto_prompt="false">
         </div>
-
-        <div id="otpStep" class="hidden">
-            <div id="otpMessage" class="auth-message"></div>
-
-            <input id="otpInput" class="auth-field"
-                   type="text"
-                   inputmode="numeric"
-                   maxlength="6"
-                   autocomplete="one-time-code"
-                   placeholder="Enter 6-digit OTP">
-
-            <button id="verifyOtp" class="primary-btn auth-btn">
-                Verify OTP
-            </button>
-
-            <button id="backToLogin" class="primary-btn auth-btn auth-secondary">
-                Back
-            </button>
+        <div class="auth-note">
+            The Flask backend independently verifies the Google ID token,
+            email verification status, and NITT Workspace domain.
         </div>
     </div>
 </div>
 
-
-    <!-- =========================
-         HEADER
-    ========================== -->
-
-    <header>
+<header>
 
         <div class="brand">
 

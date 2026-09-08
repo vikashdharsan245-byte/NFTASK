@@ -291,3 +291,40 @@ Also set:
 
     COOKIE_SECURE=1
 
+
+
+## FINAL VERCEL CHECK
+
+Before redeploying, go to:
+
+Vercel → Project → Settings → Environment Variables
+
+Delete any old variable such as:
+
+    DATABASE_URL=sqlite:///local.db
+
+Replace it with a remote PostgreSQL connection:
+
+    DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME?sslmode=require
+
+The application now explicitly crashes with a clear configuration message if
+Vercel is given SQLite, instead of trying to write `/var/task/instance/...`.
+
+Also redeploy after changing environment variables. Vercel environment
+variables are attached to deployments; changing them without a new deployment
+does not fix the already-created deployment.
+
+After deployment, test:
+
+    https://YOUR-DOMAIN.vercel.app/api/health
+
+Expected:
+
+    {"ok": true, "service": "nitt-team-inductions"}
+
+Then open the home page.
+
+\n## IMPORTANT: Google-only build
+This build removes the Resend import and all OTP code. It uses Google Sign-In only.
+If Vercel logs mention `from resend import Resend`, Vercel is deploying an old
+commit. Commit/push this build and create a new deployment.
