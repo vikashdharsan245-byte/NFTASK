@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Team Inductions</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+
+<body>
+
+<div id="authOverlay" class="auth-overlay">
+    <div class="auth-card">
+        <h2>NITT Student Login</h2>
+        <p>
+            Sign in with your NITT Google account. After Google identity
+            verification, an OTP will be sent to your verified NITT email.
+        </p>
+
+        <div id="loginStep">
+            <div id="authMessage" class="auth-message"></div>
+
+            <div
+                id="googleSignIn"
+                class="google-wrap"
+                data-client_id="{{ google_client_id }}"
+                data-context="signin"
+                data-ux_mode="popup"
+                data-callback="handleGoogleCredential"
+                data-hd="nitt.edu"
+                data-auto_prompt="false">
+            </div>
+
+            <div class="auth-note">
+                Only verified @nitt.edu accounts are accepted.
+                The server validates the Google ID token and domain.
+            </div>
+
+            <div style="text-align:center;color:#91a8c2;font-size:12px;margin:13px 0 8px;">
+                — or verify by NITT email OTP —
+            </div>
+
+            <input id="emailInput" class="auth-field"
+                   type="email"
+                   placeholder="yourrollno@nitt.edu"
+                   autocomplete="email">
+
+            <button id="sendEmailOtp" class="primary-btn auth-btn">
+                Send OTP
+            </button>
+        </div>
+
+        <div id="otpStep" class="hidden">
+            <div id="otpMessage" class="auth-message"></div>
+
+            <input id="otpInput" class="auth-field"
+                   type="text"
+                   inputmode="numeric"
+                   maxlength="6"
+                   autocomplete="one-time-code"
+                   placeholder="Enter 6-digit OTP">
+
+            <button id="verifyOtp" class="primary-btn auth-btn">
+                Verify OTP
+            </button>
+
+            <button id="backToLogin" class="primary-btn auth-btn auth-secondary">
+                Back
+            </button>
+        </div>
+    </div>
+</div>
+
+
+    <!-- =========================
+         HEADER
+    ========================== -->
+
+    <header>
+
+        <div class="brand">
+
+            <div class="logo">
+                NF
+            </div>
+
+            <div class="brand-name">
+                TEAM INDUCTIONS
+            </div>
+
+        </div>
+
+        <button class="reset-btn" id="resetBtn">Log out</button>
+
+    </header>
+
+
+    <!-- =========================
+         MAIN
+    ========================== -->
+
+    <main>
+
+        <h1 class="page-title">
+            Application Dashboard
+        </h1>
+
+
+        <!-- Application Status -->
+
+        <div class="card status-card">
+
+            <div class="status-left">
+
+                <div class="status-icon">
+                    ◷
+                </div>
+
+                <div>
+
+                    <div class="status-title">
+                        Application Status
+                    </div>
+
+                    <div class="status-text" id="statusText">
+                        Loading...
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="status-dot" id="statusDot"></div>
+
+        </div>
+
+
+        <!-- =========================
+             PICKER
+        ========================== -->
+
+        <section id="pickerSection">
+
+            <div class="card">
+
+                <div class="section-heading">
+
+                    <h2>
+                        Choose Your Preferences
+                    </h2>
+
+                    <p>
+                        Click each preference to pick a team from the list.
+                    </p>
+
+                </div>
+
+
+                <!-- JavaScript will create
+                     the 3 preference boxes here -->
+
+                <div id="picker"></div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =========================
+             LOCKED SECTION
+        ========================== -->
+
+        <section id="lockedSection" style="display: none;">
+
+            <div class="card">
+
+                <div class="section-heading">
+
+                    <h2>
+                        Your Preferences
+                    </h2>
+
+                    <p>
+                        Your preferences have been locked.
+                    </p>
+
+                </div>
+
+                <div id="lockedPreferences"></div>
+
+            </div>
+
+
+            <!-- Questionnaires -->
+
+            <div id="questionnaires"></div>
+
+        </section>
+
+    </main>
+
+
+    <!-- =========================
+         FOOTER
+    ========================== -->
+
+
+
+    <!-- =========================
+         JAVASCRIPT
+    ========================== -->
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+
+</html>
