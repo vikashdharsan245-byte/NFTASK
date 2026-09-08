@@ -328,3 +328,25 @@ Then open the home page.
 This build removes the Resend import and all OTP code. It uses Google Sign-In only.
 If Vercel logs mention `from resend import Resend`, Vercel is deploying an old
 commit. Commit/push this build and create a new deployment.
+
+
+## Latest Vercel fix
+
+If Vercel reports:
+
+    ModuleNotFoundError: No module named 'requests'
+    ImportError: The requests library is not installed from please install the requests package to use the requests transport.
+
+this build already fixes it by including:
+
+    requests>=2.32,<3
+
+in `requirements.txt`.
+
+The Google verification code uses:
+
+    google.auth.transport.requests.Request
+
+which requires the `requests` package.
+
+This build does not import Resend and does not use OTP.
