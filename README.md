@@ -350,9 +350,3 @@ The Google verification code uses:
 which requires the `requests` package.
 
 This build does not import Resend and does not use OTP.
-
-\n## Google button fix
-The frontend now initializes Google Identity Services explicitly with
-`google.accounts.id.initialize()` and `google.accounts.id.renderButton()`.
-This prevents the blank login-card problem when the Google client script loads
-asynchronously.

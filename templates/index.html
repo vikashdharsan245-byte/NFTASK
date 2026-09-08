@@ -9,22 +9,15 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 
-<body data-google-client-id="{{ google_client_id }}">
+<body>
 
 <div id="authOverlay" class="auth-overlay">
     <div class="auth-card">
         <h2>NITT Student Login</h2>
-        <p>
-            Sign in with your NITT Google Workspace account.
-            Only verified <strong>@nitt.edu</strong> accounts are accepted.
-        </p>
+        <p>Sign in using your NITT Google Workspace account.<br>Only verified <strong>@nitt.edu</strong> accounts are accepted.</p>
         <div id="authMessage" class="auth-message"></div>
-        <div id="googleSignIn" class="google-wrap"></div>
-        <div id="googleLoadError" class="auth-message"></div>
-        <div class="auth-note">
-            The Flask backend independently verifies the Google ID token,
-            email verification status, and NITT Workspace domain.
-        </div>
+        <a href="/api/auth/google/start" class="primary-btn auth-btn google-login-button">Continue with Google</a>
+        <div class="auth-note">You will be redirected to Google and returned here after login. The Flask backend verifies the OAuth response and NITT domain.</div>
     </div>
 </div>
 
@@ -162,7 +155,7 @@
          JAVASCRIPT
     ========================== -->
 
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 
 </body>

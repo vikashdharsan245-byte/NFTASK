@@ -592,10 +592,4 @@
     margin-top: 8px;
 }
 
-.google-wrap {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 44px;
-    margin: 12px 0;
-}
+.google-login-button { display:flex; align-items:center; justify-content:center; text-decoration:none; text-align:center; width:100%; box-sizing:border-box; }
