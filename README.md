@@ -22,11 +22,10 @@ Authentication:
 - Google OAuth 2.0 / OpenID Connect "Sign in with Google"
 - Restricted to `@nitt.edu`
 - Server verifies the Google ID token
-- OTP is then sent to the same verified NITT email
+- 
 - Student session is created only after OTP verification
 
 Email:
-- Resend
 
 ## Why PostgreSQL on Vercel
 
@@ -73,7 +72,7 @@ Set these:
 
 This implementation uses Google Sign-In/OIDC.
 
-Create a Google Cloud project and a Web OAuth client / Google Identity credential.
+Create a Google Cloud project and a Web OAuth 2.0 Client ID.
 
 Authorized JavaScript origin locally:
 
@@ -89,7 +88,7 @@ Production:
 
 The frontend requests the NITT hosted domain with:
 
-    data-hd="nitt.edu"
+    the `hd=nitt.edu` OAuth parameter
 
 IMPORTANT:
 `hd` is only an account-selection hint. The Flask backend also validates:
@@ -105,26 +104,24 @@ So a user cannot simply edit the browser's `data-hd` attribute to bypass the res
 Google's documentation says `hd` can restrict account selection to a Workspace domain and recommends server-side verification of the ID token. See:
 https://developers.google.com/identity/gsi/web/reference/html-reference
 
-## 4. OTP flow
+## 4. Google-only login flow
 
-The normal flow is:
+The login flow is:
 
-1. Student opens website.
-2. Student clicks "Sign in with Google".
-3. Google authenticates the user.
-4. Flask verifies the Google ID token.
-5. Flask checks the NITT domain and verified email.
-6. Flask sends an OTP to that exact NITT email using Resend.
-7. Student enters OTP.
-8. Flask creates the application session.
-9. Student selects 3 preferences.
-10. Flask locks the preferences in the database.
-11. Flask loads questionnaires using those domains.
-12. Student answers each domain's questionnaire.
-13. Flask validates and stores each answer.
-14. Final completion is recorded with `submitted_at`.
+1. Student opens the website.
+2. Student clicks "Continue with Google".
+3. Flask redirects the browser to Google OAuth.
+4. Google authenticates the student.
+5. Flask receives the authorization callback.
+6. Flask verifies the Google ID token, NITT hosted domain, and verified email.
+7. The user session is created.
+8. The student selects 3 preferences.
+9. Flask locks the preferences in PostgreSQL.
+10. Flask loads questionnaires for those selected domains.
+11. Answers are validated and stored in PostgreSQL.
+12. Completion is recorded with `submitted_at`.
 
-There is also a direct NITT-email OTP fallback in the UI. For maximum assurance, you can remove that fallback and require Google + OTP only.
+There is no DAuth and no OTP/Resend dependency in this build.
 
 ## 5. Run locally
 
@@ -256,8 +253,7 @@ The browser never receives questions for domains the user did not lock.
        |
        +---- PostgreSQL
        |
-       +---- Resend
-       |
+       +---       |
        +---- Google OAuth/OIDC
 
 No MongoDB.
@@ -350,3 +346,23 @@ The Google verification code uses:
 which requires the `requests` package.
 
 This build does not import Resend and does not use OTP.
+
+
+## 11. Important Vercel routing fix
+
+This build uses the root-level `app.py` as the Flask application entrypoint.
+The previous `api/index.py` wrapper has been removed so Vercel does not create a
+separate `/api` Python function that can result in Flask returning "Not Found"
+for `/api/auth/google/start`.
+
+After pushing this version, test these URLs:
+
+    https://YOUR-VERCEL-DOMAIN.vercel.app/api/health
+
+    https://YOUR-VERCEL-DOMAIN.vercel.app/api/auth/google/start
+
+The second URL should redirect to Google. If it returns a configuration error,
+the Flask route is working and the Google environment variables still need to
+be configured.
+
+Redeploy after changing files or environment variables.

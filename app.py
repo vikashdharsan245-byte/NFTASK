@@ -261,6 +261,118 @@ def index():
     )
 
 
+
+@app.get("/api/auth/google/start")
+def google_auth_start():
+    """Start Google OAuth authorization-code flow."""
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        return jsonify(
+            message="Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET."
+        ), 500
+
+    state = secrets.token_urlsafe(32)
+    session["oauth_state"] = state
+
+    from urllib.parse import urlencode
+
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "online",
+        "prompt": "select_account",
+        "state": state,
+        "hd": ALLOWED_DOMAIN,
+    }
+
+    return redirect(
+        "https://accounts.google.com/o/oauth2/v2/auth?"
+        + urlencode(params)
+    )
+
+
+@app.get("/api/auth/google/callback")
+def google_auth_callback():
+    """Handle Google's OAuth callback and create the Flask login session."""
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        return "Google OAuth is not configured on the server.", 500
+
+    code = request.args.get("code")
+    state = request.args.get("state")
+    expected_state = session.pop("oauth_state", None)
+
+    if not code:
+        error = request.args.get("error", "unknown_error")
+        return f"Google sign-in was cancelled or failed: {error}", 400
+
+    if not state or not expected_state or not secrets.compare_digest(state, expected_state):
+        return "Invalid OAuth state. Please start the login again.", 400
+
+    try:
+        token_response = requests.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code",
+            },
+            timeout=15,
+        )
+        token_response.raise_for_status()
+        token_data = token_response.json()
+
+        raw_id_token = token_data.get("id_token")
+        if not raw_id_token:
+            return "Google did not return an ID token.", 400
+
+        info = id_token.verify_oauth2_token(
+            raw_id_token,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+        )
+
+        email = normalize_email(info.get("email"))
+        hosted_domain = str(info.get("hd") or "").lower()
+        email_verified = bool(info.get("email_verified"))
+
+        if not valid_nitt_email(email):
+            return "Only verified @nitt.edu accounts are allowed.", 403
+
+        if hosted_domain != ALLOWED_DOMAIN:
+            return "Only NITT Google Workspace accounts are allowed.", 403
+
+        if not email_verified:
+            return "Your Google email is not verified.", 403
+
+        user = User.query.filter_by(email=email).first()
+
+        if not user:
+            user = User(email=email)
+            db.session.add(user)
+
+        user.google_sub = info.get("sub")
+        user.name = info.get("name") or user.name or ""
+
+        db.session.commit()
+
+        session.clear()
+        session["user_id"] = user.id
+        session.permanent = True
+
+        return redirect("/")
+
+    except requests.RequestException:
+        return "Could not contact Google OAuth. Please try again.", 502
+    except ValueError:
+        return "Google returned an invalid ID token.", 400
+    except Exception:
+        app.logger.exception("Google OAuth callback failed")
+        return "Google sign-in failed on the server.", 500
+
+
 @app.get("/api/auth/me")
 def auth_me():
     user = get_current_user()
