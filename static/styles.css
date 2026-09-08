@@ -591,3 +591,11 @@
     text-align: center;
     margin-top: 8px;
 }
+
+.google-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 44px;
+    margin: 12px 0;
+}

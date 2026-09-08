@@ -32,6 +32,64 @@ function showLogin(msg=""){
 }
 function hideAuth(){ document.getElementById("authOverlay").classList.add("hidden"); }
 
+
+function initGoogleSignIn() {
+    const clientId = document.body.dataset.googleClientId || "";
+    const container = document.getElementById("googleSignIn");
+
+    if (!clientId) {
+        document.getElementById("googleLoadError").textContent =
+            "Google login is not configured. Add GOOGLE_CLIENT_ID in Vercel.";
+        return;
+    }
+
+    if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+        document.getElementById("googleLoadError").textContent =
+            "Google Sign-In could not be loaded. Check browser extensions/network access and try again.";
+        return;
+    }
+
+    try {
+        google.accounts.id.initialize({
+            client_id: clientId,
+            callback: handleGoogleCredential,
+            auto_select: false,
+            cancel_on_tap_outside: true,
+            context: "signin",
+            hosted_domain: "nitt.edu"
+        });
+
+        google.accounts.id.renderButton(container, {
+            type: "standard",
+            theme: "filled_blue",
+            size: "large",
+            text: "signin_with",
+            shape: "rectangular",
+            logo_alignment: "left",
+            width: 320
+        });
+    } catch (error) {
+        console.error("Google Sign-In initialization failed:", error);
+        document.getElementById("googleLoadError").textContent =
+            "Could not initialize Google Sign-In.";
+    }
+}
+
+function waitForGoogleSignIn(attempt = 0) {
+    if (window.google?.accounts?.id) {
+        initGoogleSignIn();
+        return;
+    }
+
+    if (attempt >= 30) {
+        document.getElementById("googleLoadError").textContent =
+            "Google Sign-In is taking too long to load. Refresh the page.";
+        return;
+    }
+
+    setTimeout(() => waitForGoogleSignIn(attempt + 1), 300);
+}
+
 async function loadQuestionnaires(){
     const ids=[...new Set(state.selected.filter(Boolean))];
     const loaded=await Promise.all(ids.map(async id=>{

@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 
-<body>
+<body data-google-client-id="{{ google_client_id }}">
 
 <div id="authOverlay" class="auth-overlay">
     <div class="auth-card">
@@ -19,16 +19,8 @@
             Only verified <strong>@nitt.edu</strong> accounts are accepted.
         </p>
         <div id="authMessage" class="auth-message"></div>
-        <div
-            id="googleSignIn"
-            class="google-wrap"
-            data-client_id="{{ google_client_id }}"
-            data-context="signin"
-            data-ux_mode="popup"
-            data-callback="handleGoogleCredential"
-            data-hd="nitt.edu"
-            data-auto_prompt="false">
-        </div>
+        <div id="googleSignIn" class="google-wrap"></div>
+        <div id="googleLoadError" class="auth-message"></div>
         <div class="auth-note">
             The Flask backend independently verifies the Google ID token,
             email verification status, and NITT Workspace domain.
