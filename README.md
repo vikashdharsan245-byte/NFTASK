@@ -20,7 +20,7 @@ Database:
 
 Authentication:
 - Google OAuth 2.0 / OpenID Connect "Sign in with Google"
-- Restricted to `@nitt.edu`
+- Google OAuth sign-in accepts verified Google accounts
 - Server verifies the Google ID token
 - 
 - Student session is created only after OTP verification
@@ -88,7 +88,7 @@ Production:
 
 The frontend requests the NITT hosted domain with:
 
-    the `hd=nitt.edu` OAuth parameter
+    the standard Google OAuth authorization flow
 
 IMPORTANT:
 `hd` is only an account-selection hint. The Flask backend also validates:
@@ -96,8 +96,6 @@ IMPORTANT:
 - audience
 - issuer/expiry through google-auth
 - `email_verified == true`
-- `hd == nitt.edu`
-- email ends with `@nitt.edu`
 
 So a user cannot simply edit the browser's `data-hd` attribute to bypass the restriction.
 

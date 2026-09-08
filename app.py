@@ -58,7 +58,6 @@ app.config["SESSION_COOKIE_SECURE"] = os.environ.get("COOKIE_SECURE", "0") == "1
 
 db = SQLAlchemy(app)
 
-ALLOWED_DOMAIN = os.environ.get("ALLOWED_EMAIL_DOMAIN", "nitt.edu").lower()
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI = os.environ.get(
@@ -283,7 +282,6 @@ def google_auth_start():
         "access_type": "online",
         "prompt": "select_account",
         "state": state,
-        "hd": ALLOWED_DOMAIN,
     }
 
     return redirect(
@@ -335,14 +333,10 @@ def google_auth_callback():
         )
 
         email = normalize_email(info.get("email"))
-        hosted_domain = str(info.get("hd") or "").lower()
         email_verified = bool(info.get("email_verified"))
 
-        if not valid_nitt_email(email):
-            return "Only verified @nitt.edu accounts are allowed.", 403
-
-        if hosted_domain != ALLOWED_DOMAIN:
-            return "Only NITT Google Workspace accounts are allowed.", 403
+        if not email:
+            return "Google did not provide an email address.", 400
 
         if not email_verified:
             return "Your Google email is not verified.", 403
